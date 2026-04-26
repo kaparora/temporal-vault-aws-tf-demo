@@ -81,7 +81,7 @@ async def run_temporal_cloud_module() -> TemporalCloudOutput:
         _module_path("temporal_cloud"),
         variables={
             "temporal_cloud_api_key": read_secret("TEMPORAL_CLOUD_API_KEY", is_file=True),
-            "namespace_name":         os.getenv("TEMPORAL_NAMESPACE", "temporal-vault-demo"),
+            "namespace_name":         os.getenv("TEMPORAL_NAMESPACE_FOR_ORDERS", "temporal-vault-demo-orders"),
             "namespace_region":       os.getenv("TEMPORAL_NAMESPACE_REGION", "aws-us-east-1"),
         },
     )
