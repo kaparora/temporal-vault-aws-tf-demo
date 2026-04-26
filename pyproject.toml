@@ -1,0 +1,35 @@
+[project]
+name = "temporal-vault-aws-demo"
+version = "0.1.0"
+description = "Zero-static-credentials demo: Temporal Cloud + HCP Vault + AWS"
+requires-python = ">=3.12"
+
+dependencies = [
+    "temporalio>=1.7.0",
+    "hvac>=2.3.0",
+    "boto3>=1.34.0",
+    "asyncpg>=0.29.0",
+    "python-dotenv>=1.0.0",
+    "structlog>=24.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
