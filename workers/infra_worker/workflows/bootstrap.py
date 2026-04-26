@@ -41,10 +41,10 @@ class BootstrapWorkflow:
     @workflow.run
     async def run(self) -> None:
         retry_policy = RetryPolicy(
-            max_attempts=DEFAULT_MAX_ACTIVITY_RETRIES + 1,
+            maximum_attempts=DEFAULT_MAX_ACTIVITY_RETRIES + 1,
             initial_interval=timedelta(seconds=1),
             backoff_coefficient=2.0,
-            max_interval=timedelta(seconds=60),
+            maximum_interval=timedelta(seconds=60),
         )
 
         try:
