@@ -2,8 +2,6 @@ import json
 import os
 from dataclasses import dataclass
 
-import asyncpg
-import hvac
 from temporalio import activity
 
 from workers.common.secrets import read_secret
@@ -188,6 +186,8 @@ async def create_db_schema() -> None:
     Connects as vault_admin using credentials from env vars.
     Idempotent: uses CREATE TABLE IF NOT EXISTS.
     """
+    import asyncpg
+
     conn = await asyncpg.connect(
         host=os.environ["DB_HOST"],
         port=int(os.getenv("DB_PORT", "5432")),
@@ -259,6 +259,8 @@ async def seed_db() -> None:
     Connects as vault_admin using credentials from env vars.
     Idempotent: uses INSERT ... ON CONFLICT DO NOTHING.
     """
+    import asyncpg
+
     conn = await asyncpg.connect(
         host=os.environ["DB_HOST"],
         port=int(os.getenv("DB_PORT", "5432")),
@@ -296,6 +298,8 @@ async def rotate_vault_root_credentials() -> None:
     Rotates the vault_admin password in Vault. After this, only Vault knows the password.
     Uses HCP Vault admin token from env vars.
     """
+    import hvac
+
     vault_client = hvac.Client(
         url=os.environ["HCP_VAULT_ADDR"],
         token=os.environ["HCP_VAULT_TOKEN"],
