@@ -52,6 +52,7 @@ class BootstrapWorkflow:
             temporal_output = await workflow.execute_activity(
                 run_temporal_cloud_module,
                 retry_policy=retry_policy,
+                start_to_close_timeout=timedelta(minutes=30),
             )
 
             # Step 2: Provision HCP Vault cluster (or use existing)
@@ -60,6 +61,7 @@ class BootstrapWorkflow:
                 vault_output = await workflow.execute_activity(
                     run_hcp_vault_cluster_module,
                     retry_policy=retry_policy,
+                    start_to_close_timeout=timedelta(minutes=30),
                 )
                 workflow.logger.info("hcp_vault_cluster_provisioned")
             else:
@@ -82,6 +84,7 @@ class BootstrapWorkflow:
                     hcp_vault_namespace=vault_output.vault_namespace,
                 ),
                 retry_policy=retry_policy,
+                start_to_close_timeout=timedelta(minutes=30),
             )
 
             # Step 4: Configure Vault
@@ -95,24 +98,28 @@ class BootstrapWorkflow:
                     rds_host=aws_output.rds_host,
                 ),
                 retry_policy=retry_policy,
+                start_to_close_timeout=timedelta(minutes=30),
             )
 
             # Step 5: Create database schema
             await workflow.execute_activity(
                 create_db_schema,
                 retry_policy=retry_policy,
+                start_to_close_timeout=timedelta(minutes=10),
             )
 
             # Step 6: Seed database with sample data
             await workflow.execute_activity(
                 seed_db,
                 retry_policy=retry_policy,
+                start_to_close_timeout=timedelta(minutes=10),
             )
 
             # Step 7: Rotate Vault root credentials
             await workflow.execute_activity(
                 rotate_vault_root_credentials,
                 retry_policy=retry_policy,
+                start_to_close_timeout=timedelta(minutes=10),
             )
 
         except Exception as e:
@@ -123,10 +130,12 @@ class BootstrapWorkflow:
             await workflow.execute_activity(
                 destroy_hcp_vault_config_module,
                 retry_policy=retry_policy,
+                start_to_close_timeout=timedelta(minutes=30),
             )
             await workflow.execute_activity(
                 destroy_aws_infrastructure_module,
                 retry_policy=retry_policy,
+                start_to_close_timeout=timedelta(minutes=30),
             )
 
             # Only destroy cluster if we provisioned it
@@ -134,10 +143,12 @@ class BootstrapWorkflow:
                 await workflow.execute_activity(
                     destroy_hcp_vault_cluster_module,
                     retry_policy=retry_policy,
+                    start_to_close_timeout=timedelta(minutes=30),
                 )
 
             await workflow.execute_activity(
                 destroy_temporal_cloud_module,
                 retry_policy=retry_policy,
+                start_to_close_timeout=timedelta(minutes=30),
             )
             raise
