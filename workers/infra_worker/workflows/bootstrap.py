@@ -63,7 +63,7 @@ class BootstrapWorkflow:
                 retry_policy=retry_policy,
                 start_to_close_timeout=timedelta(minutes=30),
             )
-            workflow.logger.info(f"step_1_complete: {temporal_output.temporal_address}")
+            workflow.logger.info(f"step_1_complete: {temporal_output.temporal_address_orders}")
 
             # Step 2: Provision HCP Vault cluster (or use existing)
             if inp.provision_cluster:

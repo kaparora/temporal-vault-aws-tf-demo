@@ -116,7 +116,7 @@ async def run_temporal_cloud_module() -> TemporalCloudOutput:
         client_cert=outputs["client_cert"],
         client_key=outputs["client_key"],
     )
-    activity.logger.info(f"Temporal Cloud provisioned: {result.temporal_address}")
+    activity.logger.info(f"Temporal Cloud provisioned: {result.temporal_address_orders}")
     return result
 
 

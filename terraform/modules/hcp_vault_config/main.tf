@@ -118,6 +118,7 @@ resource "vault_database_secret_backend_role" "write_orders" {
 
   creation_statements = [
     "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';",
+    "GRANT SELECT ON orders TO \"{{name}}\";",
     "GRANT UPDATE ON orders TO \"{{name}}\";",
     "GRANT INSERT ON fulfilments TO \"{{name}}\";",
   ]
