@@ -1,6 +1,6 @@
 # Temporal Cloud + HCP Vault + AWS Terraform Demo
 
-**Status: Work in Progress (WIP)**
+**Status: Bootstrap Working — Order Fulfillment In Progress**
 
 A production-grade demonstration of zero-static-credentials infrastructure using:
 - **Temporal Cloud** for workflow orchestration
@@ -94,12 +94,24 @@ See `.env.example` for required environment variables.
 └── test_terraform_plans.sh         # Validates Terraform configurations
 ```
 
+## Current Status
+
+### Bootstrap Workflow ✅
+All 7 bootstrap steps are working end-to-end and can be rerun without issues:
+- A fresh random DB admin password is generated on each run (RDS-compatible charset)
+- Schema creation and seeding are idempotent (`CREATE TABLE IF NOT EXISTS`, `INSERT ... ON CONFLICT DO NOTHING`)
+- Vault root credential rotation runs after schema setup, eliminating the static password
+- Because Terraform state is preserved between runs, the workflow is safe to fix and rerun — Terraform will only apply changes
+
+**Compensation (rollback) activities** exist for all Terraform modules (`destroy_*` activities) but are currently commented out in the workflow. Wiring up full automatic rollback on failure is a pending task.
+
+### Order Fulfillment Workflow ⬜
+Not yet implemented.
+
 ## Next Steps
 
-- [ ] Test Terraform plans (modules 1 & 2)
-- [ ] Run bootstrap workflow end-to-end
-- [ ] Deploy order fulfillment workflows
-- [ ] Add comprehensive testing
+- [ ] Implement order fulfillment workflow and activities (dynamic Vault creds per activity)
+- [ ] Wire up compensation/rollback in bootstrap workflow on failure
 - [ ] Security hardening (Temporal data converter, S3 remote state, AWS Secrets Manager)
 
 ---
