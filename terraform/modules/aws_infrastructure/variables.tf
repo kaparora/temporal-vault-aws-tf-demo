@@ -40,7 +40,7 @@ variable "db_name" {
 
 variable "db_admin_user" {
   type    = string
-  default = "vault_admin"
+  default = "postgres"
 }
 
 variable "db_admin_password" {

@@ -19,6 +19,14 @@ resource "vault_auth_backend" "aws" {
   path = "aws"
 }
 
+resource "vault_aws_auth_backend_client" "config" {
+  backend      = vault_auth_backend.aws.path
+  access_key   = var.aws_access_key_id
+  secret_key   = var.aws_secret_access_key
+  sts_endpoint = "https://sts.${var.aws_region}.amazonaws.com"
+  sts_region   = var.aws_region
+}
+
 resource "vault_aws_auth_backend_role" "worker" {
   backend                  = vault_auth_backend.aws.path
   role                     = "temporal-worker"
@@ -27,6 +35,8 @@ resource "vault_aws_auth_backend_role" "worker" {
   token_policies           = ["temporal-worker-policy"]
   token_ttl                = 3600
   token_max_ttl            = 14400
+
+  depends_on = [vault_aws_auth_backend_client.config]
 }
 
 # ── Database secrets engine ───────────────────────────────────────────────────

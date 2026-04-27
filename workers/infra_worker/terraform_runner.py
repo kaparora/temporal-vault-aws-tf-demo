@@ -22,6 +22,12 @@ def run_terraform(
     so sensitive values don't appear in process listings.
     """
     module_path = Path(module_dir).resolve()
+
+    # Validate that no required variables are None
+    none_vars = [k for k, v in variables.items() if v is None]
+    if none_vars:
+        raise ValueError(f"Required variables are None: {', '.join(none_vars)}")
+
     env = {**os.environ}
     for key, value in variables.items():
         env[f"TF_VAR_{key}"] = str(value)

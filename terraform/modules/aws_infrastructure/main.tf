@@ -47,21 +47,14 @@ resource "aws_subnet" "public" {
   tags = { Name = "${var.project_name}-public" }
 }
 
-# RDS requires a subnet group spanning at least 2 AZs
-resource "aws_subnet" "private_a" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, 2)
-  availability_zone = data.aws_availability_zones.available.names[0]
+# RDS requires a subnet group spanning at least 2 AZs — both public for bootstrap phase
+resource "aws_subnet" "public_b" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet(var.vpc_cidr, 8, 2)
+  availability_zone       = data.aws_availability_zones.available.names[1]
+  map_public_ip_on_launch = true
 
-  tags = { Name = "${var.project_name}-private-a" }
-}
-
-resource "aws_subnet" "private_b" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, 3)
-  availability_zone = data.aws_availability_zones.available.names[1]
-
-  tags = { Name = "${var.project_name}-private-b" }
+  tags = { Name = "${var.project_name}-public-b" }
 }
 
 # ── Routing ───────────────────────────────────────────────────────────────────
@@ -78,6 +71,11 @@ resource "aws_route_table" "public" {
 
 resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "public_b" {
+  subnet_id      = aws_subnet.public_b.id
   route_table_id = aws_route_table.public.id
 }
 
@@ -181,7 +179,7 @@ resource "aws_iam_instance_profile" "worker" {
 # ── RDS PostgreSQL ────────────────────────────────────────────────────────────
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-db-subnet-group"
-  subnet_ids = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+  subnet_ids = [aws_subnet.public.id, aws_subnet.public_b.id]
 
   tags = { Name = "${var.project_name}-db-subnet-group" }
 }
@@ -198,8 +196,8 @@ resource "aws_db_instance" "postgres" {
   password = var.db_admin_password
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
+  publicly_accessible    = true
   vpc_security_group_ids = [aws_security_group.rds.id]
-  publicly_accessible    = length(var.bootstrap_allowed_cidrs) > 0
 
   skip_final_snapshot = true
   deletion_protection = false
@@ -220,6 +218,7 @@ resource "aws_launch_template" "worker" {
   network_interfaces {
     associate_public_ip_address = true
     security_groups             = [aws_security_group.ec2.id]
+    subnet_id                   = aws_subnet.public.id
   }
 
   user_data = base64encode(templatefile("${path.module}/userdata.sh", {
@@ -245,8 +244,6 @@ resource "aws_launch_template" "worker" {
 
 # ── EC2 instance ──────────────────────────────────────────────────────────────
 resource "aws_instance" "worker" {
-  subnet_id = aws_subnet.public.id
-
   launch_template {
     id      = aws_launch_template.worker.id
     version = "$Latest"

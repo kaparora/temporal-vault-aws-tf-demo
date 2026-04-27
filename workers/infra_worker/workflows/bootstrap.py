@@ -1,4 +1,4 @@
-import os
+from dataclasses import dataclass
 from datetime import timedelta
 
 from temporalio import workflow
@@ -6,11 +6,12 @@ from temporalio.common import RetryPolicy
 
 from workers.infra_worker.activities.bootstrap_activities import (
     AWSInfraInput,
+    DBActivityInput,
     HCPVaultClusterOutput,
     HCPVaultConfigInput,
+    VaultRotateInput,
     create_db_schema,
     destroy_aws_infrastructure_module,
-    destroy_hcp_vault_cluster_module,
     destroy_hcp_vault_config_module,
     destroy_temporal_cloud_module,
     rotate_vault_root_credentials,
@@ -21,6 +22,14 @@ from workers.infra_worker.activities.bootstrap_activities import (
     seed_db,
 )
 from workers.infra_worker.config import DEFAULT_MAX_ACTIVITY_RETRIES
+
+
+@dataclass
+class BootstrapInput:
+    provision_cluster: bool
+    hcp_vault_addr: str = ""
+    hcp_vault_namespace: str = "admin"
+    hcp_vault_token: str = ""
 
 
 @workflow.defn
@@ -39,7 +48,7 @@ class BootstrapWorkflow:
     """
 
     @workflow.run
-    async def run(self) -> None:
+    async def run(self, inp: BootstrapInput) -> None:
         retry_policy = RetryPolicy(
             maximum_attempts=DEFAULT_MAX_ACTIVITY_RETRIES + 1,
             initial_interval=timedelta(seconds=1),
@@ -54,10 +63,10 @@ class BootstrapWorkflow:
                 retry_policy=retry_policy,
                 start_to_close_timeout=timedelta(minutes=30),
             )
+            workflow.logger.info(f"step_1_complete: {temporal_output.temporal_address}")
 
             # Step 2: Provision HCP Vault cluster (or use existing)
-            provision_cluster = os.getenv("PROVISION_HCP_VAULT_CLUSTER", "true").lower() == "true"
-            if provision_cluster:
+            if inp.provision_cluster:
                 vault_output = await workflow.execute_activity(
                     run_hcp_vault_cluster_module,
                     retry_policy=retry_policy,
@@ -66,11 +75,13 @@ class BootstrapWorkflow:
                 workflow.logger.info("hcp_vault_cluster_provisioned")
             else:
                 vault_output = HCPVaultClusterOutput(
-                    vault_public_endpoint=os.environ["HCP_VAULT_ADDR"],
-                    vault_namespace=os.getenv("HCP_VAULT_NAMESPACE", "admin"),
-                    admin_token=os.environ["HCP_VAULT_TOKEN"],
+                    vault_public_endpoint=inp.hcp_vault_addr,
+                    vault_namespace=inp.hcp_vault_namespace,
+                    admin_token=inp.hcp_vault_token,
                 )
                 workflow.logger.info("using_existing_hcp_vault_cluster")
+
+            workflow.logger.info(f"step_2_complete: {vault_output.vault_public_endpoint}")
 
             # Step 3: Provision AWS infrastructure
             aws_output = await workflow.execute_activity(
@@ -86,6 +97,7 @@ class BootstrapWorkflow:
                 retry_policy=retry_policy,
                 start_to_close_timeout=timedelta(minutes=30),
             )
+            workflow.logger.info(f"step_3_complete: EC2={aws_output.ec2_public_ip}, RDS={aws_output.rds_host}")
 
             # Step 4: Configure Vault
             await workflow.execute_activity(
@@ -100,55 +112,81 @@ class BootstrapWorkflow:
                 retry_policy=retry_policy,
                 start_to_close_timeout=timedelta(minutes=30),
             )
+            workflow.logger.info("step_4_complete")
 
             # Step 5: Create database schema
             await workflow.execute_activity(
                 create_db_schema,
+                DBActivityInput(
+                    rds_host=aws_output.rds_host,
+                    db_port=5432,
+                    db_admin_user="postgres",
+                    db_name="ordersdb",
+                ),
                 retry_policy=retry_policy,
                 start_to_close_timeout=timedelta(minutes=10),
             )
+            workflow.logger.info("step_5_complete")
 
             # Step 6: Seed database with sample data
             await workflow.execute_activity(
                 seed_db,
+                DBActivityInput(
+                    rds_host=aws_output.rds_host,
+                    db_port=5432,
+                    db_admin_user="postgres",
+                    db_name="ordersdb",
+                ),
                 retry_policy=retry_policy,
                 start_to_close_timeout=timedelta(minutes=10),
             )
+            workflow.logger.info("step_6_complete")
 
             # Step 7: Rotate Vault root credentials
             await workflow.execute_activity(
                 rotate_vault_root_credentials,
+                VaultRotateInput(
+                    vault_public_endpoint=vault_output.vault_public_endpoint,
+                    vault_namespace=vault_output.vault_namespace,
+                    admin_token=vault_output.admin_token,
+                ),
                 retry_policy=retry_policy,
                 start_to_close_timeout=timedelta(minutes=10),
             )
+            workflow.logger.info("step_7_complete")
 
         except Exception as e:
-            workflow.logger.error(f"Bootstrap failed at step, rolling back all infrastructure: {e}")
-
-            # Full rollback: destroy all Terraform modules in reverse order
-            # (safe to call even if modules weren't fully created)
-            await workflow.execute_activity(
-                destroy_hcp_vault_config_module,
-                retry_policy=retry_policy,
-                start_to_close_timeout=timedelta(minutes=30),
-            )
-            await workflow.execute_activity(
-                destroy_aws_infrastructure_module,
-                retry_policy=retry_policy,
-                start_to_close_timeout=timedelta(minutes=30),
-            )
-
-            # Only destroy cluster if we provisioned it
-            if provision_cluster:
-                await workflow.execute_activity(
-                    destroy_hcp_vault_cluster_module,
-                    retry_policy=retry_policy,
-                    start_to_close_timeout=timedelta(minutes=30),
-                )
-
-            await workflow.execute_activity(
-                destroy_temporal_cloud_module,
-                retry_policy=retry_policy,
-                start_to_close_timeout=timedelta(minutes=30),
-            )
+            workflow.logger.error(f"Destroy failed: {e}")
             raise
+
+            # # Cleanup on failure
+            # try:
+            #     await workflow.execute_activity(
+            #         destroy_hcp_vault_config_module,
+            #         vault_output,
+            #         retry_policy=retry_policy,
+            #         start_to_close_timeout=timedelta(minutes=30),
+            #     )
+            # except NameError:
+            #     workflow.logger.info("Vault not provisioned, skipping Vault config destroy")
+
+            # await workflow.execute_activity(
+            #     destroy_aws_infrastructure_module,
+            #     retry_policy=retry_policy,
+            #     start_to_close_timeout=timedelta(minutes=30),
+            # )
+
+            # # # Only destroy cluster if we provisioned it
+            # # if provision_cluster:
+            # #     await workflow.execute_activity(
+            # #         destroy_hcp_vault_cluster_module,
+            # #         retry_policy=retry_policy,
+            # #         start_to_close_timeout=timedelta(minutes=30),
+            # #     )
+
+            # # await workflow.execute_activity(
+            # #     destroy_temporal_cloud_module,
+            # #     retry_policy=retry_policy,
+            # #     start_to_close_timeout=timedelta(minutes=30),
+            # # )
+            # raise

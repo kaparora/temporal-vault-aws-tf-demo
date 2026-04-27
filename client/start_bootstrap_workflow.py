@@ -6,7 +6,7 @@ import structlog
 from dotenv import load_dotenv
 
 from workers.common.temporal_client import connect_temporal_client
-from workers.infra_worker.workflows.bootstrap import BootstrapWorkflow
+from workers.infra_worker.workflows.bootstrap import BootstrapWorkflow, BootstrapInput
 
 structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(20))
 logger = structlog.get_logger()
@@ -23,11 +23,23 @@ async def main() -> None:
     )
 
     bootstrap_task_queue = os.getenv("BOOTSTRAP_TASK_QUEUE", "bootstrap-tq")
+    provision_cluster = os.getenv("PROVISION_HCP_VAULT_CLUSTER", "true").lower() == "true"
+    hcp_vault_addr = os.getenv("HCP_VAULT_ADDR", "")
+    hcp_vault_namespace = os.getenv("HCP_VAULT_NAMESPACE", "admin")
+    hcp_vault_token = os.getenv("HCP_VAULT_TOKEN", "")
 
-    logger.info("triggering_bootstrap_workflow", task_queue=bootstrap_task_queue)
+    bootstrap_input = BootstrapInput(
+        provision_cluster=provision_cluster,
+        hcp_vault_addr=hcp_vault_addr,
+        hcp_vault_namespace=hcp_vault_namespace,
+        hcp_vault_token=hcp_vault_token,
+    )
+
+    logger.info("triggering_bootstrap_workflow", task_queue=bootstrap_task_queue, provision_cluster=provision_cluster)
     try:
         await temporal_client.execute_workflow(
-            BootstrapWorkflow.run,
+            BootstrapWorkflow,
+            bootstrap_input,
             id="bootstrap-workflow",
             task_queue=bootstrap_task_queue,
         )

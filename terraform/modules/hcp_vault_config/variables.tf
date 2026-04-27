@@ -26,6 +26,25 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
+variable "aws_access_key_id" {
+  description = "AWS access key for Vault AWS auth backend configuration"
+  type        = string
+  sensitive   = true
+}
+
+variable "aws_secret_access_key" {
+  description = "AWS secret key for Vault AWS auth backend configuration"
+  type        = string
+  sensitive   = true
+}
+
+variable "aws_session_token" {
+  description = "AWS session token for temporary credentials (optional)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "iam_role_arn" {
   description = "ARN of the EC2 IAM role — Vault AWS auth is bound to this identity"
   type        = string
