@@ -129,11 +129,13 @@ uv run python -m client.trigger_order ORD-003   # payment failure + compensation
 ## Current Status
 
 ### Bootstrap Workflow ✅
-All 7 bootstrap steps working end-to-end:
+All 7 bootstrap steps working end-to-end with full HCP Vault cluster provisioning (`PROVISION_HCP_VAULT_CLUSTER=true`):
 - Fresh random DB admin password generated on each run (RDS-compatible charset)
 - Schema creation and seeding are idempotent (`CREATE TABLE IF NOT EXISTS`, `INSERT ... ON CONFLICT DO NOTHING`)
 - Vault root credential rotation eliminates the static password after setup
 - Safe to rerun — Terraform only applies changes, existing resources are preserved
+
+> **Not yet tested:** the `PROVISION_HCP_VAULT_CLUSTER=false` path (using a pre-existing HCP Vault cluster). Set `PROVISION_HCP_VAULT_CLUSTER=false` and provide `HCP_VAULT_ADDR`, `HCP_VAULT_NAMESPACE`, and `HCP_VAULT_TOKEN` to skip cluster provisioning and reuse an existing cluster.
 
 ### Order Fulfillment Workflow ✅
 All 3 scenarios verified working:
@@ -149,6 +151,7 @@ All 3 scenarios verified working:
 - **Terraform state**: Local `.tfstate` files contain sensitive values. Next step: S3 remote backend with server-side encryption.
 - **Bootstrap env vars**: `HCP_CLIENT_SECRET`, `AWS_SECRET_ACCESS_KEY`, etc. live in the shell environment. Next step: fetch from AWS Secrets Manager at runtime.
 - **Bootstrap rollback**: Destroy activities are implemented but not wired up. Full automatic rollback on bootstrap failure is a future task.
+- **Existing Vault cluster path**: The `PROVISION_HCP_VAULT_CLUSTER=false` flow (reusing a pre-existing HCP Vault cluster) is implemented but not yet tested end-to-end.
 
 ---
 
