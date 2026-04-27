@@ -23,7 +23,7 @@ async def main() -> None:
     order_id = sys.argv[1]
 
     temporal_client = await connect_temporal_client(
-        temporal_address=os.environ["TEMPORAL_ADDRESS"],
+        temporal_address=os.environ["TEMPORAL_ADDRESS_ORDERS"],
         temporal_namespace=os.environ["TEMPORAL_NAMESPACE"],
         tls_cert_path=os.environ["TEMPORAL_TLS_CERT"],
         tls_key_path=os.environ["TEMPORAL_TLS_KEY"],
