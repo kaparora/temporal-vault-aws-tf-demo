@@ -5,9 +5,11 @@ import structlog
 from temporalio.worker import Worker
 
 from workers.common.temporal_client import connect_temporal_client
+from workers.order_worker.activities.order_activities import OrderActivities
 from workers.order_worker.config import OrderWorkerConfig
 from workers.order_worker.interceptors import VaultTokenRefreshInterceptor
 from workers.order_worker.vault_client import create_vault_client
+from workers.order_worker.workflows.order_fulfillment import OrderFulfillmentWorkflow
 
 structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(20))
 logger = structlog.get_logger()
@@ -28,12 +30,20 @@ async def main() -> None:
     )
 
     identity = f"{socket.gethostname()}@{cfg.task_queue}"
+    order_activities = OrderActivities(cfg, vault_client)
 
     worker = Worker(
         temporal_client,
         task_queue=cfg.task_queue,
-        workflows=[],    # populated in Step 8g
-        activities=[],   # populated in Steps 8a-8f
+        workflows=[OrderFulfillmentWorkflow],
+        activities=[
+            order_activities.validate_order,
+            order_activities.reserve_inventory,
+            order_activities.process_payment,
+            order_activities.update_order_status,
+            order_activities.send_notification,
+            order_activities.release_inventory,
+        ],
         interceptors=[VaultTokenRefreshInterceptor(vault_client)],
         identity=identity,
         max_concurrent_activities=10,

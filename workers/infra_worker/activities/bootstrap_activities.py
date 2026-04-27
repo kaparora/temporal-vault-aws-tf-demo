@@ -298,6 +298,16 @@ async def create_db_schema(inp: DBActivityInput) -> None:
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS order_items (
+                id TEXT PRIMARY KEY,
+                order_id TEXT NOT NULL REFERENCES orders(id),
+                product_id TEXT NOT NULL REFERENCES inventory(product_id),
+                quantity INTEGER NOT NULL,
+                unit_price DECIMAL(10, 2) NOT NULL DEFAULT 9.99
+            )
+        """)
         activity.logger.info("Database schema created successfully")
     finally:
         await conn.close()
@@ -339,6 +349,14 @@ async def seed_db(inp: DBActivityInput) -> None:
             ('PROD-C', 'Gadget C', 25),
             ('PROD-D', 'Gadget D', 10),
             ('PROD-E', 'Gizmo E', 5)
+            ON CONFLICT DO NOTHING
+        """)
+
+        await conn.execute("""
+            INSERT INTO order_items (id, order_id, product_id, quantity, unit_price) VALUES
+            ('ITEM-001', 'ORD-001', 'PROD-A', 1,  9.99),
+            ('ITEM-002', 'ORD-002', 'PROD-E', 10, 4.99),
+            ('ITEM-003', 'ORD-003', 'PROD-B', 1,  9.99)
             ON CONFLICT DO NOTHING
         """)
         activity.logger.info("Database seeded with sample data")

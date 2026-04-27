@@ -85,13 +85,22 @@ resource "aws_security_group" "ec2" {
   description = "EC2 worker: outbound to internet and RDS"
   vpc_id      = aws_vpc.main.id
 
-  # Outbound: HTTPS for HCP Vault + Temporal Cloud API
+  # Outbound: HTTPS for Temporal Cloud API
   egress {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "HCP Vault + Temporal Cloud HTTPS"
+    description = "Temporal Cloud HTTPS"
+  }
+
+  # Outbound: HCP Vault (uses port 8200 not 443)
+  egress {
+    from_port   = 8200
+    to_port     = 8200
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "HCP Vault API"
   }
 
   # Outbound: Temporal Cloud gRPC
@@ -174,6 +183,11 @@ resource "aws_iam_role" "worker" {
 resource "aws_iam_instance_profile" "worker" {
   name = "${var.project_name}-worker-profile"
   role = aws_iam_role.worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "ssm" {
+  role       = aws_iam_role.worker.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 # ── RDS PostgreSQL ────────────────────────────────────────────────────────────

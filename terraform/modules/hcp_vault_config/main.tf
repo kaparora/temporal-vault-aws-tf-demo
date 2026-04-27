@@ -72,6 +72,8 @@ resource "vault_database_secret_backend_role" "read_orders" {
   creation_statements = [
     "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';",
     "GRANT SELECT ON orders TO \"{{name}}\";",
+    "GRANT SELECT ON order_items TO \"{{name}}\";",
+    "GRANT SELECT ON inventory TO \"{{name}}\";",
   ]
   revocation_statements = ["DROP ROLE IF EXISTS \"{{name}}\";"]
 

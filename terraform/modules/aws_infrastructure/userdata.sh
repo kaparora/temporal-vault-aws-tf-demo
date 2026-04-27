@@ -7,7 +7,8 @@ dnf install -y git python3.12 python3.12-pip
 
 # ── Install uv ────────────────────────────────────────────────────────────────
 curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="/root/.cargo/bin:$PATH"
+source /root/.local/bin/env
+cp /root/.local/bin/uv /usr/local/bin/uv
 
 # ── Clone worker code ─────────────────────────────────────────────────────────
 git clone --branch ${git_branch} ${git_repo_url} /opt/temporal-worker
@@ -57,7 +58,9 @@ Type=simple
 User=ec2-user
 WorkingDirectory=/opt/temporal-worker
 EnvironmentFile=/opt/temporal-worker/.env
-ExecStart=/opt/temporal-worker/.venv/bin/python -m worker.main
+ExecStartPre=/usr/bin/git -C /opt/temporal-worker pull
+ExecStartPre=/usr/local/bin/uv sync --project /opt/temporal-worker
+ExecStart=/opt/temporal-worker/.venv/bin/python -m workers.order_worker.main
 Restart=on-failure
 RestartSec=10
 
