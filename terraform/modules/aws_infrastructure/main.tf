@@ -260,7 +260,7 @@ resource "aws_launch_template" "worker" {
 resource "aws_instance" "worker" {
   launch_template {
     id      = aws_launch_template.worker.id
-    version = "$Latest"
+    version = aws_launch_template.worker.latest_version
   }
 
   tags = { Name = "${var.project_name}-worker" }
