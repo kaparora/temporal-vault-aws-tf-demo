@@ -17,36 +17,6 @@ This project demonstrates how to build a secure, credential-free system where:
 3. **EC2 IAM Authentication** eliminates static credentials — workers authenticate to Vault using their IAM role
 4. **Vault Root Credential Rotation** removes the static database admin password after initial setup
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                  Temporal Cloud                         │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │ Bootstrap Workflow (Laptop)                       │  │
-│  │  1. Provision Temporal Cloud namespace            │  │
-│  │  2. Provision HCP Vault cluster                   │  │
-│  │  3. Provision AWS infrastructure (EC2, RDS, IAM)  │  │
-│  │  4. Configure Vault (IAM auth, DB engine, roles)  │  │
-│  │  5. Create database schema                        │  │
-│  │  6. Seed database                                 │  │
-│  │  7. Rotate Vault root credentials                 │  │
-│  └───────────────────────────────────────────────────┘  │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │ Order Fulfillment Workflow (EC2)                  │  │
-│  │  - Validate order                                 │  │
-│  │  - Reserve inventory (dynamic DB creds from Vault)│  │
-│  │  - Process payment                                │  │
-│  │  - Update order status                            │  │
-│  │  - Send notification                              │  │
-│  │  - Release inventory (compensation on failure)    │  │
-│  └───────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
-        ↓                    ↓                    ↓
-    HCP Vault          AWS Infrastructure      RDS PostgreSQL
-    (mTLS, IAM)      (EC2 with IAM role)      (no static creds)
-```
-
 ## System Architecture
 
 ```mermaid
@@ -89,6 +59,199 @@ graph TB
     DBE -->|dynamic credentials| EC2
     DBE -->|creates dynamic DB user| RDS
     EC2 -->|connects with short-lived creds| RDS
+```
+
+## Bootstrap Workflow
+
+```mermaid
+sequenceDiagram
+    participant BC as Bootstrap Client
+    participant TC as Temporal Cloud
+    participant IW as Infra Worker (Laptop)
+    participant TF as Terraform
+    participant HCP as HCP Vault
+    participant AWS as AWS
+    participant RDS as RDS PostgreSQL
+
+    BC->>TC: trigger BootstrapWorkflow
+    TC->>IW: dispatch activities
+
+    IW->>TF: run temporal_cloud module
+    TF-->>IW: temporal_address, namespace, mTLS certs
+
+    IW->>TF: run hcp_vault_cluster module
+    TF-->>IW: vault_endpoint, vault_namespace, admin_token
+
+    IW->>TF: run aws_infrastructure module
+    TF->>AWS: create VPC, EC2, RDS, IAM role
+    AWS-->>TF: ec2_ip, rds_host, iam_role_arn
+    TF-->>IW: ec2_ip, rds_host, iam_role_arn
+
+    IW->>TF: run hcp_vault_config module
+    TF->>HCP: enable IAM auth, DB secrets engine, per-activity roles
+    HCP->>RDS: configure DB connection
+    TF-->>IW: done
+
+    IW->>RDS: create_db_schema (as postgres)
+    RDS-->>IW: tables created
+
+    IW->>RDS: seed_db (as postgres)
+    RDS-->>IW: seed data inserted
+
+    IW->>HCP: rotate_root_credentials
+    HCP->>RDS: rotate vault_admin password
+    Note over HCP,RDS: static DB password eliminated<br/>only Vault knows it from now on
+
+    IW-->>TC: workflow complete
+    TC-->>BC: done
+```
+
+## Order Fulfillment Workflow
+
+### Happy Path (ORD-001)
+
+```mermaid
+sequenceDiagram
+    participant C as Trigger Client
+    participant TC as Temporal Cloud
+    participant OW as Order Worker (EC2)
+    participant V as HCP Vault
+    participant RDS as RDS PostgreSQL
+
+    C->>TC: trigger OrderFulfillmentWorkflow(ORD-001)
+    TC->>OW: dispatch activities
+
+    OW->>V: get creds (role-read-orders)
+    V-->>OW: username, password
+    OW->>RDS: validate_order — SELECT orders
+    RDS-->>OW: order valid
+
+    OW->>V: get creds (role-write-inventory)
+    V-->>OW: username, password
+    OW->>RDS: reserve_inventory — UPDATE inventory
+    RDS-->>OW: inventory reserved
+
+    OW->>V: get creds (role-write-payments)
+    V-->>OW: username, password
+    OW->>RDS: process_payment — INSERT payments
+    RDS-->>OW: payment SUCCESS
+
+    OW->>V: get creds (role-write-orders)
+    V-->>OW: username, password
+    OW->>RDS: update_order_status — UPDATE orders, INSERT fulfilments
+    RDS-->>OW: order FULFILLED
+
+    OW->>V: get creds (role-write-notifications)
+    V-->>OW: username, password
+    OW->>RDS: send_notification — INSERT notifications
+    RDS-->>OW: notification sent
+
+    OW-->>TC: workflow complete
+    TC-->>C: done
+```
+
+### Out of Stock (ORD-002)
+
+```mermaid
+sequenceDiagram
+    participant C as Trigger Client
+    participant TC as Temporal Cloud
+    participant OW as Order Worker (EC2)
+    participant V as HCP Vault
+    participant RDS as RDS PostgreSQL
+
+    C->>TC: trigger OrderFulfillmentWorkflow(ORD-002)
+    TC->>OW: dispatch activities
+
+    OW->>V: get creds (role-read-orders)
+    V-->>OW: username, password
+    OW->>RDS: validate_order — SELECT orders
+    RDS-->>OW: order valid
+
+    OW->>V: get creds (role-write-inventory)
+    V-->>OW: username, password
+    OW->>RDS: reserve_inventory — UPDATE inventory
+    RDS-->>OW: insufficient stock
+
+    OW-->>TC: workflow failed (out of stock)
+    TC-->>C: error
+```
+
+### Payment Failure with Compensation (ORD-003)
+
+```mermaid
+sequenceDiagram
+    participant C as Trigger Client
+    participant TC as Temporal Cloud
+    participant OW as Order Worker (EC2)
+    participant V as HCP Vault
+    participant RDS as RDS PostgreSQL
+
+    C->>TC: trigger OrderFulfillmentWorkflow(ORD-003)
+    TC->>OW: dispatch activities
+
+    OW->>V: get creds (role-read-orders)
+    V-->>OW: username, password
+    OW->>RDS: validate_order — SELECT orders
+    RDS-->>OW: order valid
+
+    OW->>V: get creds (role-write-inventory)
+    V-->>OW: username, password
+    OW->>RDS: reserve_inventory — UPDATE inventory
+    RDS-->>OW: inventory reserved
+
+    OW->>V: get creds (role-write-payments)
+    V-->>OW: username, password
+    OW->>RDS: process_payment — INSERT payments
+    RDS-->>OW: payment FAILED
+
+    Note over OW: compensation triggered
+    OW->>V: get creds (role-write-inventory)
+    V-->>OW: username, password
+    OW->>RDS: release_inventory — UPDATE inventory
+    RDS-->>OW: inventory restored
+
+    OW->>V: get creds (role-write-notifications)
+    V-->>OW: username, password
+    OW->>RDS: send_notification — INSERT notifications (ORDER_FAILED)
+    RDS-->>OW: notification sent
+
+    OW-->>TC: workflow failed (payment failure)
+    TC-->>C: error
+```
+
+## Vault Dynamic Credential Flow
+
+How the EC2 order worker gets a fresh, short-lived database credential for each activity.
+
+```mermaid
+sequenceDiagram
+    participant OW as Order Worker (EC2)
+    participant IMDS as AWS Instance Metadata
+    participant IAM as AWS IAM
+    participant V as HCP Vault
+    participant RDS as RDS PostgreSQL
+
+    Note over OW,V: Worker startup — authenticate to Vault once
+    OW->>IMDS: get instance profile credentials
+    IMDS-->>OW: access_key, secret_key, session_token
+    OW->>V: IAM login (signed request + role=temporal-worker)
+    V->>IAM: verify IAM identity
+    IAM-->>V: identity confirmed
+    V-->>OW: Vault client token
+
+    Note over OW,RDS: Per activity — fresh DB credential
+    OW->>V: read database/creds/role-write-orders
+    V->>RDS: CREATE ROLE dynamic-user-xyz WITH LOGIN ...
+    V->>RDS: GRANT SELECT, UPDATE ON orders TO dynamic-user-xyz
+    V->>RDS: GRANT INSERT ON fulfilments TO dynamic-user-xyz
+    V-->>OW: username=dynamic-user-xyz, password=..., ttl=1h
+    OW->>RDS: connect as dynamic-user-xyz
+    OW->>RDS: UPDATE orders SET status = FULFILLED
+    OW->>RDS: close connection
+
+    Note over V,RDS: After TTL expires
+    V->>RDS: DROP ROLE dynamic-user-xyz
 ```
 
 ## Key Features
