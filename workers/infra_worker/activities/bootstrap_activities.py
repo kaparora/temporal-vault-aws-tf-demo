@@ -15,7 +15,7 @@ from workers.infra_worker.terraform_runner import run_terraform
 
 @dataclass
 class TemporalCloudOutput:
-    temporal_address: str
+    temporal_address_orders: str
     temporal_namespace: str
     client_cert: str
     client_key: str
@@ -42,7 +42,7 @@ class AWSInfraOutput:
 @dataclass
 class AWSInfraInput:
     # From Temporal Cloud activity
-    temporal_address: str
+    temporal_address_orders: str
     temporal_namespace: str
     temporal_tls_cert: str
     temporal_tls_key: str
@@ -111,7 +111,7 @@ async def run_temporal_cloud_module() -> TemporalCloudOutput:
         },
     )
     result = TemporalCloudOutput(
-        temporal_address=outputs["temporal_address"],
+        temporal_address_orders=outputs["temporal_address_orders"],
         temporal_namespace=outputs["temporal_namespace"],
         client_cert=outputs["client_cert"],
         client_key=outputs["client_key"],
@@ -174,7 +174,7 @@ async def run_aws_infrastructure_module(inp: AWSInfraInput) -> AWSInfraOutput:
             "git_branch":              os.getenv("GIT_BRANCH", "main"),
             "bootstrap_allowed_cidrs": cidrs_json,
             # From Temporal Cloud activity
-            "temporal_address":        inp.temporal_address,
+            "temporal_address":        inp.temporal_address_orders,
             "temporal_namespace":      inp.temporal_namespace,
             "temporal_tls_cert":       inp.temporal_tls_cert,
             "temporal_tls_key":        inp.temporal_tls_key,

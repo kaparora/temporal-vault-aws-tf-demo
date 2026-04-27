@@ -87,7 +87,7 @@ class BootstrapWorkflow:
             aws_output = await workflow.execute_activity(
                 run_aws_infrastructure_module,
                 AWSInfraInput(
-                    temporal_address=temporal_output.temporal_address,
+                    temporal_address_orders=temporal_output.temporal_address_orders,
                     temporal_namespace=temporal_output.temporal_namespace,
                     temporal_tls_cert=temporal_output.client_cert,
                     temporal_tls_key=temporal_output.client_key,

@@ -29,7 +29,7 @@ chmod 600 /opt/temporal-worker/certs/client.key
 # ── Worker .env ───────────────────────────────────────────────────────────────
 cat > /opt/temporal-worker/.env << 'EOF'
 AUTH_METHOD=iam
-TEMPORAL_ADDRESS=${temporal_address}
+TEMPORAL_ADDRESS_ORDERS=${temporal_address}
 TEMPORAL_NAMESPACE=${temporal_namespace}
 TEMPORAL_TLS_CERT=/opt/temporal-worker/certs/client.pem
 TEMPORAL_TLS_KEY=/opt/temporal-worker/certs/client.key

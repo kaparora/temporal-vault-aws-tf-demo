@@ -9,7 +9,7 @@ load_dotenv()
 @dataclass
 class OrderWorkerConfig:
     # ── Temporal Cloud ────────────────────────────────────────────────────────
-    temporal_address: str   = os.getenv("TEMPORAL_ADDRESS", "")
+    temporal_address: str   = os.getenv("TEMPORAL_ADDRESS_ORDERS", "")
     temporal_namespace: str = os.getenv("TEMPORAL_NAMESPACE", "default")
     temporal_tls_cert: str  = os.getenv("TEMPORAL_TLS_CERT", "")
     temporal_tls_key: str   = os.getenv("TEMPORAL_TLS_KEY", "")

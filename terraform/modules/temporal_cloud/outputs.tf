@@ -1,5 +1,5 @@
-output "temporal_address" {
-  description = "Temporal Cloud mTLS gRPC endpoint for the namespace — written to EC2 worker .env"
+output "temporal_address_orders" {
+  description = "Temporal Cloud mTLS gRPC endpoint for the orders namespace — written to EC2 worker .env"
   value       = temporalcloud_namespace.main.endpoints.mtls_grpc_address
 }
 
