@@ -355,11 +355,17 @@ All 3 scenarios verified working:
 ## Security Notes & Future Work
 
 - **Temporal event history**: Activity inputs/outputs (mTLS certs, admin tokens) are stored in plain text in Temporal Cloud. Next step: Vault Transit data converter to encrypt all payloads.
-- **Terraform state**: Local `.tfstate` files contain sensitive values. Next step: S3 remote backend with server-side encryption.
-- **Bootstrap env vars**: `HCP_CLIENT_SECRET`, `AWS_SECRET_ACCESS_KEY`, etc. live in the shell environment. Next step: fetch from AWS Secrets Manager at runtime.
+- **Terraform state**: Local `.tfstate` files contain sensitive values. Next step: migrate to Terraform Cloud for remote state with encryption and locking.
+- **Bootstrap env vars**: `HCP_CLIENT_SECRET`, `AWS_SECRET_ACCESS_KEY`, etc. live in the shell environment. Next step: move bootstrap triggering into a CI/CD pipeline (e.g. GitHub Actions) and fetch all credentials from Vault at runtime, eliminating the need for manual secrets on the operator's machine.
 - **Bootstrap rollback**: Destroy activities are implemented but not wired up. Full automatic rollback on bootstrap failure is a future task.
 - **Existing Vault cluster path**: The `PROVISION_HCP_VAULT_CLUSTER=false` flow (reusing a pre-existing HCP Vault cluster) is implemented but not yet tested end-to-end.
 
 ---
 
-**Questions?** Open an issue or check the Temporal Cloud + HCP Vault documentation.
+## Development
+
+I built this project with Claude as an AI pair-programming assistant. Claude helped with brainstorming, code suggestions, refactoring, and documentation, while I directed the work, reviewed the outputs, and made the final implementation decisions.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
