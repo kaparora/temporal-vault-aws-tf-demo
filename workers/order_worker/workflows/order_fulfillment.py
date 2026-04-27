@@ -4,7 +4,8 @@ from datetime import timedelta
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 
-from workers.order_worker.activities.order_activities import OrderActivities
+with workflow.unsafe.imports_passed_through():
+    from workers.order_worker.activities.order_activities import OrderActivities
 
 
 @dataclass
