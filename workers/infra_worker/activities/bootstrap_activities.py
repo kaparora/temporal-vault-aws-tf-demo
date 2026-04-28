@@ -419,28 +419,28 @@ async def destroy_hcp_vault_config_module(inp: HCPVaultClusterOutput) -> None:
 @activity.defn
 async def destroy_aws_infrastructure_module() -> None:
     """
-    Destroys AWS infrastructure: VPC, subnets, security groups, NAT gateway, EC2, RDS, IAM role.
+    Destroys AWS infrastructure: VPC, subnets, security groups, EC2, RDS, IAM role.
+    Variables that are only used in EC2 userdata or were rotated by Vault are passed
+    as placeholders — terraform destroy only needs them to parse the config, not to
+    make API calls (resource IDs come from state).
     """
     activity.logger.info("Destroying AWS infrastructure")
-
-    bootstrap_cidrs = os.getenv("BOOTSTRAP_ALLOWED_CIDRS", "")
-    cidrs_json = json.dumps(bootstrap_cidrs.split(",")) if bootstrap_cidrs else json.dumps([])
 
     run_terraform(
         _module_path("aws_infrastructure"),
         variables={
             "project_name":            os.getenv("PROJECT_NAME", "temporal-vault-aws-demo"),
             "aws_region":              os.getenv("AWS_REGION", "us-east-1"),
-            "db_admin_password":       os.getenv("DB_ADMIN_PASSWORD", ""),
-            "git_repo_url":            os.getenv("GIT_REPO_URL", ""),
+            "db_admin_password":       "placeholder-rotated-by-vault",
+            "git_repo_url":            os.getenv("GIT_REPO_URL", "placeholder"),
             "git_branch":              os.getenv("GIT_BRANCH", "main"),
-            "bootstrap_allowed_cidrs": cidrs_json,
-            "temporal_address":        os.getenv("TEMPORAL_ADDRESS", ""),
-            "temporal_namespace":      os.getenv("TEMPORAL_NAMESPACE", ""),
-            "temporal_tls_cert":       os.getenv("TEMPORAL_TLS_CERT", ""),
-            "temporal_tls_key":        os.getenv("TEMPORAL_TLS_KEY", ""),
-            "hcp_vault_addr":          os.getenv("HCP_VAULT_ADDR", ""),
-            "hcp_vault_namespace":     os.getenv("HCP_VAULT_NAMESPACE", "admin"),
+            "bootstrap_allowed_cidrs": json.dumps([]),
+            "temporal_address":        "placeholder",
+            "temporal_namespace":      "placeholder",
+            "temporal_tls_cert":       "placeholder",
+            "temporal_tls_key":        "placeholder",
+            "hcp_vault_addr":          "placeholder",
+            "hcp_vault_namespace":     "placeholder",
         },
         subcommand="destroy",
     )
@@ -450,18 +450,22 @@ async def destroy_aws_infrastructure_module() -> None:
 @activity.defn
 async def destroy_hcp_vault_cluster_module() -> None:
     """
-    Destroys HCP Vault cluster and HVN.
+    Destroys HCP Vault cluster and HVN. All Vault config (auth methods, secrets
+    engines, roles) is destroyed with the cluster — no need to destroy hcp_vault_config
+    separately.
     """
     activity.logger.info("Destroying HCP Vault cluster")
 
     run_terraform(
         _module_path("hcp_vault_cluster"),
         variables={
-            "hcp_client_id":     os.getenv("HCP_CLIENT_ID", ""),
-            "hcp_client_secret": os.getenv("HCP_CLIENT_SECRET", ""),
-            "hcp_project_id":    os.getenv("HCP_PROJECT_ID", ""),
+            "hcp_client_id":     os.environ["HCP_CLIENT_ID"],
+            "hcp_client_secret": os.environ["HCP_CLIENT_SECRET"],
+            "hcp_project_id":    os.environ["HCP_PROJECT_ID"],
             "project_name":      os.getenv("PROJECT_NAME", "temporal-vault-aws-demo"),
             "cluster_id":        os.getenv("HCP_VAULT_CLUSTER_ID", "temporal-vault"),
+            "cluster_tier":      os.getenv("HCP_VAULT_CLUSTER_TIER", "dev"),
+            "hvn_region":        os.getenv("AWS_REGION", "us-east-1"),
         },
         subcommand="destroy",
     )
@@ -473,8 +477,15 @@ async def destroy_temporal_cloud_module() -> None:
     """
     Destroys Temporal Cloud namespace and mTLS certificates.
     """
+    activity.logger.info("Destroying Temporal Cloud namespace")
+
     run_terraform(
         _module_path("temporal_cloud"),
-        variables={},
+        variables={
+            "temporal_cloud_api_key": read_secret("TEMPORAL_CLOUD_API_KEY", is_file=True),
+            "namespace_name":         os.getenv("TEMPORAL_NAMESPACE_FOR_ORDERS", "temporal-vault-demo-orders"),
+            "namespace_region":       os.getenv("TEMPORAL_NAMESPACE_REGION", "aws-us-east-1"),
+        },
         subcommand="destroy",
     )
+    activity.logger.info("Temporal Cloud namespace destroyed")

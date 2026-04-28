@@ -20,6 +20,7 @@ from workers.infra_worker.activities.bootstrap_activities import (
     seed_db,
 )
 from workers.infra_worker.workflows.bootstrap import BootstrapWorkflow
+from workers.infra_worker.workflows.teardown import TeardownWorkflow
 
 structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(20))
 logger = structlog.get_logger()
@@ -39,7 +40,7 @@ async def main() -> None:
     worker = Worker(
         temporal_client,
         task_queue=bootstrap_task_queue,
-        workflows=[BootstrapWorkflow],
+        workflows=[BootstrapWorkflow, TeardownWorkflow],
         activities=[
             run_temporal_cloud_module,
             run_hcp_vault_cluster_module,

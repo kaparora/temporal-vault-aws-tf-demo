@@ -298,6 +298,22 @@ uv run python -m client.trigger_order ORD-002   # out-of-stock scenario
 uv run python -m client.trigger_order ORD-003   # payment failure + compensation
 ```
 
+### 3. Tear down the infrastructure
+
+When you're done, run the teardown workflow to destroy everything in reverse order:
+
+```bash
+uv run python -m client.start_infra_worker &
+uv run python -m client.start_teardown_workflow
+```
+
+This destroys all infrastructure provisioned by the bootstrap workflow, in reverse order:
+1. **AWS infrastructure** — EC2 worker, RDS PostgreSQL, VPC, IAM role
+2. **HCP Vault cluster** — cluster and HVN (all Vault config is destroyed with it)
+3. **Temporal Cloud namespace** — orders namespace and mTLS certificates
+
+> Set `PROVISION_HCP_VAULT_CLUSTER=false` in your `.env` to skip step 2 and keep the Vault cluster.
+
 ## Test Scenarios
 
 | Order ID | Scenario | Expected Outcome |
